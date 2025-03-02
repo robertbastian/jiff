@@ -1,5 +1,8 @@
 use crate::tz::{TimeZone, TimeZoneNameIter};
 
+mod tzname;
+static TZIF_DATA: &[u8] = include_bytes!("concatenated-zoneinfo.dat");
+
 pub(crate) struct Database;
 
 impl Database {
@@ -22,8 +25,11 @@ impl Database {
         if name == "Etc/Unknown" {
             return Some(TimeZone::unknown());
         }
-        let (canonical_name, tzif) = lookup(name)?;
-        let tz = match TimeZone::tzif(canonical_name, tzif) {
+        let index = tzname::TZNAME_TO_OFFSET
+            .binary_search_by(|(n, _)| cmp_ignore_ascii_case(name, n))
+            .ok()?;
+        let (canonical_name, ref range) = tzname::TZNAME_TO_OFFSET[index];
+        let tz = match TimeZone::tzif(canonical_name, &TZIF_DATA[range.clone()]) {
             Ok(tz) => tz,
             Err(_err) => {
                 warn!(
@@ -40,7 +46,7 @@ impl Database {
     }
 
     pub(crate) fn available<'d>(&'d self) -> TimeZoneNameIter<'d> {
-        TimeZoneNameIter::from_iter(available())
+        TimeZoneNameIter::from_iter(tzname::TZNAME_TO_OFFSET.iter().map(|&(name, _)| name))
     }
 
     pub(crate) fn is_definitively_empty(&self) -> bool {
@@ -51,28 +57,6 @@ impl Database {
 impl core::fmt::Debug for Database {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Bundled(available)")
-    }
-}
-
-fn available() -> impl Iterator<Item = &'static str> {
-    #[cfg(feature = "tzdb-bundle-always")]
-    {
-        jiff_tzdb::available()
-    }
-    #[cfg(not(feature = "tzdb-bundle-always"))]
-    {
-        jiff_tzdb_platform::jiff_tzdb::available()
-    }
-}
-
-fn lookup(name: &str) -> Option<(&'static str, &'static [u8])> {
-    #[cfg(feature = "tzdb-bundle-always")]
-    {
-        jiff_tzdb::get(name)
-    }
-    #[cfg(not(feature = "tzdb-bundle-always"))]
-    {
-        jiff_tzdb_platform::jiff_tzdb::get(name)
     }
 }
 
@@ -149,5 +133,36 @@ mod global {
     struct CachedZone {
         name: String,
         tz: TimeZone,
+    }
+}
+
+/// Like std's `eq_ignore_ascii_case`, but returns a full `Ordering`.
+fn cmp_ignore_ascii_case(s1: &str, s2: &str) -> core::cmp::Ordering {
+    let it1 = s1.as_bytes().iter().map(|&b| b.to_ascii_lowercase());
+    let it2 = s2.as_bytes().iter().map(|&b| b.to_ascii_lowercase());
+    it1.cmp(it2)
+}
+
+#[cfg(test)]
+mod tests {
+    use core::cmp::Ordering;
+
+    use tzname::TZNAME_TO_OFFSET;
+
+    use super::*;
+
+    /// This is a regression test where TZ names were sorted lexicographically
+    /// but case sensitively, and this could subtly break binary search.
+    #[test]
+    fn sorted_ascii_case_insensitive() {
+        for window in TZNAME_TO_OFFSET.windows(2) {
+            let (name1, _) = window[0];
+            let (name2, _) = window[1];
+            assert_eq!(
+                Ordering::Less,
+                cmp_ignore_ascii_case(name1, name2),
+                "{name1} should be less than {name2}",
+            );
+        }
     }
 }

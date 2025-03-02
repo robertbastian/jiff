@@ -62,14 +62,6 @@ pub fn include(input: TokenStream) -> TokenStream {
     proc_macro::TokenStream::from(input.quote())
 }
 
-// Public API docs are in Jiff.
-#[cfg(feature = "tzdb")]
-#[proc_macro]
-pub fn get(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as Get);
-    proc_macro::TokenStream::from(input.quote())
-}
-
 /// The entry point for the `include!` macro.
 #[derive(Debug)]
 struct Include {
@@ -130,42 +122,6 @@ impl syn::parse::Parse for Include {
         }
         Ok(Include::from_path_with_id(&lit2, &lit1)
             .map_err(|e| input.error(e))?)
-    }
-}
-
-/// The entry point for the `get!` macro.
-#[cfg(feature = "tzdb")]
-#[derive(Debug)]
-struct Get {
-    tzif: TzifOwned,
-}
-
-#[cfg(feature = "tzdb")]
-impl Get {
-    fn from_id(id: &str) -> Result<Get, String> {
-        let (id, data) = jiff_tzdb::get(id).ok_or_else(|| {
-            format!("could not find time zone `{id}` in bundled tzdb")
-        })?;
-        let id = id.to_string();
-        let tzif = TzifOwned::parse(Some(id.clone()), &data).map_err(|e| {
-            format!("failed to parse TZif data from bundled `{id}`: {e}")
-        })?;
-        Ok(Get { tzif })
-    }
-
-    fn quote(&self) -> proc_macro2::TokenStream {
-        self.tzif.quote()
-    }
-}
-
-#[cfg(feature = "tzdb")]
-impl syn::parse::Parse for Get {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Get> {
-        let lit1 = input.parse::<syn::LitStr>()?.value();
-        if input.lookahead1().peek(syn::Token![,]) {
-            input.parse::<syn::Token![,]>()?;
-        }
-        Ok(Get::from_id(&lit1).map_err(|e| input.error(e))?)
     }
 }
 

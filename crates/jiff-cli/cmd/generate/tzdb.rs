@@ -212,7 +212,7 @@ impl Config {
     fn jiff_tzdb(&self) -> &Path {
         self.jiff_tzdb
             .as_deref()
-            .unwrap_or_else(|| Path::new("./crates/jiff-tzdb"))
+            .unwrap_or_else(|| Path::new("./src/tz/db/bundled"))
     }
 }
 
