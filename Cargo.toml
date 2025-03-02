@@ -36,7 +36,6 @@ members = [
   "crates/jiff-sqlx",
   "crates/jiff-static",
   "crates/jiff-tzdb",
-  "crates/jiff-tzdb-platform",
   "examples/*",
 ]
 exclude = [
@@ -96,7 +95,7 @@ static-tz = ["dep:jiff-static"]
 
 # This conditionally bundles tzdb into the binary depending on which platform
 # Jiff is being built for.
-tzdb-bundle-platform = ["dep:jiff-tzdb-platform", "alloc"]
+tzdb-bundle-platform = ["dep:jiff-tzdb", "alloc"]
 
 # This forces the jiff-tzdb crate to be included. If tzdb-zoneinfo is enabled,
 # then the system tzdb will take priority over the bundled database.
@@ -155,13 +154,6 @@ serde = { version = "1.0.203", optional = true, default-features = false }
 # See: https://github.com/matklad/macro-dep-test
 [target.'cfg(any())'.dependencies]
 jiff-static = { version = "=0.2.1", path = "crates/jiff-static" }
-
-# Note that the `cfg` gate for the `tzdb-bundle-platform` must repeat the
-# target gate on this dependency. The intent is that `tzdb-bundle-platform`
-# is enabled by default, but that the `tzdb-bundle-platform` crate is only
-# actually used on platforms without a system tzdb (i.e., Windows and wasm).
-[target.'cfg(any(windows, target_family = "wasm"))'.dependencies]
-jiff-tzdb-platform = { version = "0.1.2", path = "crates/jiff-tzdb-platform", optional = true }
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = ">=0.52.0, <=0.59.*"
